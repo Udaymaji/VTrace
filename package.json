@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "python3 app.py",
-    "build": "python3 train_model.py",
+    "build": "echo 'Build skipped (using pre-trained models)'",
     "start": "python3 app.py",
     "clean": "rm -rf dist models/*.pth",
     "lint": "python3 -c 'import app, model, database, simulator; print(\"Lint OK\")'"

@@ -13,4 +13,3 @@ venv/
 .venv/
 env/
 *.db
-models/
