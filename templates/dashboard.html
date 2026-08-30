@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+
+{% block title %}ICU Clinical Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">ICU Telemetry & Acute Care Overview</h1>
+        <p class="page-subtitle">Real-time deep learning physiological surveillance and deterioration risk scoring</p>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <a href="{{ url_for('patients_page') }}" class="btn btn-secondary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>
+            Manage Patients
+        </a>
+        <a href="{{ url_for('monitoring_page') }}" class="btn btn-primary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+            Open Live Telemetry
+        </a>
+    </div>
+</div>
+
+<!-- STATS SUMMARY CARDS -->
+<div class="stats-grid">
+    <div class="stat-card info">
+        <div class="stat-title">Total Patients</div>
+        <div class="stat-value">{{ stats.total_patients }}</div>
+        <div class="stat-desc">Admitted in ICU Unit</div>
+    </div>
+    <div class="stat-card normal">
+        <div class="stat-title">Active Monitoring</div>
+        <div class="stat-value" style="color: var(--color-normal);">{{ stats.active_monitoring }}</div>
+        <div class="stat-desc">Streaming live telemetry</div>
+    </div>
+    <div class="stat-card normal">
+        <div class="stat-title">Normal Status</div>
+        <div class="stat-value" style="color: var(--color-normal);">{{ stats.normal_count }}</div>
+        <div class="stat-desc">Stable physiological range</div>
+    </div>
+    <div class="stat-card warning">
+        <div class="stat-title">Warning Level</div>
+        <div class="stat-value" style="color: var(--color-warning);">{{ stats.warning_count }}</div>
+        <div class="stat-desc">Moderate risk detected</div>
+    </div>
+    <div class="stat-card critical">
+        <div class="stat-title">Critical Level</div>
+        <div class="stat-value" style="color: var(--color-critical);">{{ stats.critical_count }}</div>
+        <div class="stat-desc">Immediate triage alert</div>
+    </div>
+</div>
+
+<!-- REAL-TIME PATIENT CARDS SECTION -->
+<div style="margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+    <h2 style="font-size: 16px; font-weight: 700; color: #fff;">Active Patient Surveillance Cards</h2>
+    <span style="font-size: 12px; color: var(--text-muted);">Auto-synchronized via Socket.IO</span>
+</div>
+
+<div class="patient-cards-grid">
+    {% for p in patients %}
+    {% set pred = p.latest_prediction|default('NORMAL') %}
+    <div id="patient-card-{{ p.patient_id }}" class="patient-card status-{{ pred|lower }}">
+        <!-- Card Header -->
+        <div class="card-header-row">
+            <div class="patient-meta-info">
+                <h3>{{ p.full_name }}</h3>
+                <div class="patient-submeta">
+                    <span class="pid-pill">{{ p.patient_id }}</span>
+                    <span>{{ p.age }} yrs</span>
+                    <span>•</span>
+                    <span>{{ p.gender }}</span>
+                </div>
+            </div>
+            <div>
+                {% if p.monitoring_status == 'ACTIVE' %}
+                    <span class="badge badge-{{ pred|lower }} status-badge">{{ pred }}</span>
+                {% else %}
+                    <span class="badge badge-inactive status-badge">STANDBY</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Real-Time Physiological Vitals Grid -->
+        <div class="vitals-mini-grid">
+            <div class="vital-box">
+                <span class="vital-label">Heart Rate</span>
+                <span class="vital-val vital-hr">{{ p.latest_hr|default(75, true)|round(1) }} <span class="vital-unit">BPM</span></span>
+            </div>
+            <div class="vital-box">
+                <span class="vital-label">SpO2 Oxygen</span>
+                <span class="vital-val vital-spo2">{{ p.latest_spo2|default(98, true)|round(1) }}<span class="vital-unit">%</span></span>
+            </div>
+            <div class="vital-box">
+                <span class="vital-label">Core Temp</span>
+                <span class="vital-val vital-temp">{{ p.latest_temp|default(36.8, true)|round(1) }}<span class="vital-unit">°C</span></span>
+            </div>
+            <div class="vital-box">
+                <span class="vital-label">Resp. Rate</span>
+                <span class="vital-val vital-rr">{{ p.latest_rr|default(15, true)|round(1) }} <span class="vital-unit">RPM</span></span>
+            </div>
+            <div class="vital-box" style="grid-column: span 2;">
+                <span class="vital-label">Blood Pressure</span>
+                <span class="vital-val vital-bp">{{ p.latest_sys|default(118, true)|round(0)|int }}/{{ p.latest_dia|default(76, true)|round(0)|int }} <span class="vital-unit">mmHg</span></span>
+            </div>
+        </div>
+
+        <!-- AI Deep Learning Inference Strip -->
+        <div class="ai-diagnosis-strip">
+            <div class="ai-risk-meter">
+                <span style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 600;">LSTM Risk:</span>
+                <span class="risk-val ai-risk-val" style="color: {% if pred == 'CRITICAL' %}var(--color-critical){% elif pred == 'WARNING' %}var(--color-warning){% else %}var(--color-normal){% endif %};">
+                    {{ p.latest_risk_score|default(12.0, true) }}%
+                </span>
+            </div>
+            <div style="font-size: 11px; color: var(--text-secondary);">
+                Confidence: <strong style="color: #fff;">{{ p.latest_confidence|default(98.5, true) }}%</strong>
+            </div>
+        </div>
+
+        <!-- Card Action Controls -->
+        <div class="card-actions-row">
+            <a href="{{ url_for('monitoring_page', patient_id=p.patient_id) }}" class="btn btn-primary btn-sm" style="flex: 1;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                Telemetry Stream
+            </a>
+            {% if p.monitoring_status == 'ACTIVE' %}
+            <button onclick="toggleMonitoring('{{ p.patient_id }}', false)" class="btn btn-danger btn-sm" title="Stop Real-Time Stream">
+                Stop
+            </button>
+            {% else %}
+            <button onclick="toggleMonitoring('{{ p.patient_id }}', true)" class="btn btn-success btn-sm" title="Start Real-Time Stream">
+                Start
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

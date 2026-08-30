@@ -1,0 +1,241 @@
+{% extends 'base.html' %}
+
+{% block title %}Live Telemetry & PyTorch LSTM — VitalTrace{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Real-Time Physiological Telemetry & PyTorch LSTM Surveillance</h1>
+        <p class="page-subtitle">Sub-second multi-channel vital streaming, sequence preprocessing, and neural network inference</p>
+    </div>
+    
+    <!-- PATIENT SWITCHER -->
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <label style="font-size: 12px; color: var(--text-secondary); font-weight: 600;">ACTIVE ICU BED:</label>
+        <select class="form-control" style="background: var(--bg-input); width: auto; font-weight: 600;" onchange="window.location.href='/monitoring/' + this.value">
+            {% for p in patients %}
+            <option value="{{ p.patient_id }}" {% if active_patient and active_patient.patient_id == p.patient_id %}selected{% endif %}>
+                {{ p.full_name }} ({{ p.patient_id }}) — {{ p.monitoring_status }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+{% if active_patient %}
+<!-- TELEMETRY HERO BANNER -->
+<div class="telemetry-hero">
+    <div class="telemetry-hero-header">
+        <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <h2 style="font-size: 20px; font-weight: 800; color: #fff;">{{ active_patient.full_name }}</h2>
+                <span class="pid-pill" style="font-size: 13px; color: var(--color-accent); font-weight: 700;">{{ active_patient.patient_id }}</span>
+                {% if active_patient.monitoring_status == 'ACTIVE' %}
+                    <span class="badge badge-normal" id="stream-active-badge"><span class="status-dot"></span> STREAMING ACTIVE</span>
+                {% else %}
+                    <span class="badge badge-inactive" id="stream-active-badge">STANDBY</span>
+                {% endif %}
+            </div>
+            <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">
+                {{ active_patient.age }} yrs • {{ active_patient.gender }} • History: {{ active_patient.medical_history|default('None') }}
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; align-items: center;">
+            {% if active_patient.monitoring_status == 'ACTIVE' %}
+            <button onclick="toggleMonitoring('{{ active_patient.patient_id }}', false)" class="btn btn-danger">
+                ⏹️ Stop Stream
+            </button>
+            {% else %}
+            <button onclick="toggleMonitoring('{{ active_patient.patient_id }}', true)" class="btn btn-success">
+                ▶️ Start Real-Time Monitoring
+            </button>
+            {% endif %}
+            <a href="{{ url_for('history_page', patient_id=active_patient.patient_id) }}" class="btn btn-secondary">
+                📜 View Logs
+            </a>
+        </div>
+    </div>
+
+    <!-- LIVE VITAL GAUGES ROW -->
+    <div class="active-vitals-banner">
+        <div class="live-vital-gauge-card" style="border-top: 3px solid #ef4444;">
+            <div class="gauge-title">Heart Rate</div>
+            <div id="gauge-hr-val" class="gauge-value" style="color: #f87171;">--</div>
+            <div class="gauge-unit">BPM (60-100)</div>
+        </div>
+        <div class="live-vital-gauge-card" style="border-top: 3px solid #0ea5e9;">
+            <div class="gauge-title">SpO2 Oxygen</div>
+            <div id="gauge-spo2-val" class="gauge-value" style="color: #38bdf8;">--%</div>
+            <div class="gauge-unit">Target >95%</div>
+        </div>
+        <div class="live-vital-gauge-card" style="border-top: 3px solid #f59e0b;">
+            <div class="gauge-title">Core Temp</div>
+            <div id="gauge-temp-val" class="gauge-value" style="color: #fbbf24;">--°C</div>
+            <div class="gauge-unit">Normal 36.5-37.5</div>
+        </div>
+        <div class="live-vital-gauge-card" style="border-top: 3px solid #10b981;">
+            <div class="gauge-title">Resp. Rate</div>
+            <div id="gauge-rr-val" class="gauge-value" style="color: #34d399;">--</div>
+            <div class="gauge-unit">RPM (12-20)</div>
+        </div>
+        <div class="live-vital-gauge-card" style="border-top: 3px solid #8b5cf6;">
+            <div class="gauge-title">Blood Pressure</div>
+            <div id="gauge-bp-val" class="gauge-value" style="color: #a78bfa;">--/--</div>
+            <div class="gauge-unit">mmHg (120/80)</div>
+        </div>
+    </div>
+
+    <!-- DEMO CONTROLS & AI DIAGNOSTICS CARD -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <!-- DEMO SIMULATION CONTROLLER -->
+        <div class="simulation-controls-box">
+            <div>
+                <div style="font-size: 13px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 6px;">
+                    ⚡ Clinical Scenario Injection Controls
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;">
+                    Alters underlying physiological vitals; PyTorch LSTM calculates real-time deterioration
+                </div>
+            </div>
+            <div class="sim-btn-group">
+                <button onclick="triggerSimulation('{{ active_patient.patient_id }}', 'NORMAL')" class="btn btn-secondary btn-sm" style="border-color: var(--color-normal); color: var(--color-normal);" title="Stabilize physiological parameters">
+                    💚 RESET NORMAL
+                </button>
+                <button onclick="triggerSimulation('{{ active_patient.patient_id }}', 'WARNING')" class="btn btn-secondary btn-sm" style="border-color: var(--color-warning); color: var(--color-warning);" title="Inject moderate stress & tachycardia">
+                    ⚠️ SIMULATE WARNING
+                </button>
+                <button onclick="triggerSimulation('{{ active_patient.patient_id }}', 'CRITICAL')" class="btn btn-secondary btn-sm" style="border-color: var(--color-critical); color: var(--color-critical);" title="Inject severe acute decompensation">
+                    🚨 SIMULATE CRITICAL
+                </button>
+            </div>
+        </div>
+
+        <!-- AI DEEP LEARNING DIAGNOSTICS -->
+        <div style="background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 14px 18px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <div>
+                    <span style="font-size: 11px; text-transform: uppercase; color: var(--color-accent); font-weight: 700;">PyTorch LSTM Inference</span>
+                    <div style="font-size: 16px; font-weight: 800; color: #fff; margin-top: 2px;">
+                        Status: <span id="ai-pred-badge" class="badge badge-normal">ANALYZING</span>
+                    </div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 11px; color: var(--text-muted);">Deterioration Risk</div>
+                    <div id="ai-risk-score" style="font-size: 20px; font-weight: 800; color: #fff;">--%</div>
+                </div>
+            </div>
+
+            <!-- Risk Bar -->
+            <div style="margin: 8px 0;">
+                <div style="height: 6px; background: #1e293b; border-radius: 4px; overflow: hidden;">
+                    <div id="ai-risk-bar" style="height: 100%; width: 10%; background: #10b981; transition: all 0.3s ease;"></div>
+                </div>
+            </div>
+
+            <!-- Softmax Class Probabilities -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; font-size: 10px; color: var(--text-secondary);">
+                <div>
+                    Normal: <span id="prob-normal-bar" style="color: var(--color-normal); font-weight: 700;">--%</span>
+                </div>
+                <div>
+                    Warning: <span id="prob-warning-bar" style="color: var(--color-warning); font-weight: 700;">--%</span>
+                </div>
+                <div>
+                    Critical: <span id="prob-critical-bar" style="color: var(--color-critical); font-weight: 700;">--%</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- LIVE CHARTS MULTI-STREAM GRID -->
+<div class="charts-grid">
+    <!-- Heart Rate Chart -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <div class="chart-title">
+                <span style="color: #ef4444;">❤️</span> Heart Rate (BPM)
+            </div>
+            <span style="font-size: 11px; color: var(--text-muted);">Normal: 60-100</span>
+        </div>
+        <div class="chart-canvas-container">
+            <canvas id="chart-hr"></canvas>
+        </div>
+    </div>
+
+    <!-- SpO2 Chart -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <div class="chart-title">
+                <span style="color: #0ea5e9;">🫁</span> Oxygen Saturation SpO2 (%)
+            </div>
+            <span style="font-size: 11px; color: var(--text-muted);">Normal: 95-100%</span>
+        </div>
+        <div class="chart-canvas-container">
+            <canvas id="chart-spo2"></canvas>
+        </div>
+    </div>
+
+    <!-- Temperature Chart -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <div class="chart-title">
+                <span style="color: #f59e0b;">🌡️</span> Core Body Temperature (°C)
+            </div>
+            <span style="font-size: 11px; color: var(--text-muted);">Normal: 36.5-37.5°C</span>
+        </div>
+        <div class="chart-canvas-container">
+            <canvas id="chart-temp"></canvas>
+        </div>
+    </div>
+
+    <!-- Respiratory Rate Chart -->
+    <div class="chart-card">
+        <div class="chart-header">
+            <div class="chart-title">
+                <span style="color: #10b981;">🌬️</span> Respiratory Rate (RPM)
+            </div>
+            <span style="font-size: 11px; color: var(--text-muted);">Normal: 12-20 RPM</span>
+        </div>
+        <div class="chart-canvas-container">
+            <canvas id="chart-rr"></canvas>
+        </div>
+    </div>
+
+    <!-- Blood Pressure Chart -->
+    <div class="chart-card" style="grid-column: span 2;">
+        <div class="chart-header">
+            <div class="chart-title">
+                <span style="color: #8b5cf6;">🩺</span> Blood Pressure (Systolic & Diastolic mmHg)
+            </div>
+            <span style="font-size: 11px; color: var(--text-muted);">Normal: 120/80 mmHg</span>
+        </div>
+        <div class="chart-canvas-container">
+            <canvas id="chart-bp"></canvas>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div style="background: var(--bg-card); padding: 40px; text-align: center; border-radius: var(--radius-xl); border: 1px solid var(--border-color);">
+    <h3>No patients available in ICU.</h3>
+    <p style="color: var(--text-secondary); margin: 10px 0 20px 0;">Please register a patient first.</p>
+    <a href="{{ url_for('patients_page') }}" class="btn btn-primary">+ Add Patient</a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/monitoring.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    {% if active_patient %}
+    const activePid = "{{ active_patient.patient_id }}";
+    const initialVitals = {{ initial_vitals|tojson|safe }};
+    initMonitoringDashboard(activePid, initialVitals);
+    {% endif %}
+});
+</script>
+{% endblock %}

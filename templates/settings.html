@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+
+{% block title %}Model Architecture & System Settings — VitalTrace{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Deep Learning Architecture & System Settings</h1>
+        <p class="page-subtitle">PyTorch LSTM neural network specifications, scaler parameters, model training trigger, and SQLite status</p>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
+    <!-- PYTORCH LSTM ARCHITECTURE CARD -->
+    <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-xl); padding: 24px; box-shadow: var(--shadow-card);">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+            <h2 style="font-size: 16px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
+                🧠 PyTorch LSTM Architecture
+            </h2>
+            {% if model_loaded %}
+            <span class="badge badge-normal"><span class="status-dot"></span> LOADED IN MEMORY</span>
+            {% else %}
+            <span class="badge badge-critical">NOT LOADED</span>
+            {% endif %}
+        </div>
+
+        <div style="font-size: 13px; line-height: 1.8; color: var(--text-secondary);">
+            <div><strong>Framework:</strong> PyTorch 2.x (CPU Engine)</div>
+            <div><strong>Input Features (6):</strong> <code style="color: var(--color-accent); background: var(--bg-input); padding: 2px 6px; border-radius: 4px;">{{ features|join(', ') }}</code></div>
+            <div><strong>Sequence Length (Window):</strong> {{ seq_len }} timesteps</div>
+            <div><strong>LSTM Hidden Units:</strong> {{ hidden_size }} dimensions (2 stacked layers)</div>
+            <div><strong>Dropout Regularization:</strong> 0.2 (between LSTM layers & FC)</div>
+            <div><strong>Fully Connected Head:</strong> Linear(64 &rarr; 32) &rarr; ReLU &rarr; Linear(32 &rarr; 3)</div>
+            <div><strong>Softmax Output Classes:</strong> <code>[NORMAL (0), WARNING (1), CRITICAL (2)]</code></div>
+            <div><strong>Preprocessing:</strong> <code>StandardScaler</code> (fitted on temporal baseline distributions)</div>
+            <div><strong>Weights Path:</strong> <code>models/lstm_model.pth</code></div>
+            <div><strong>Scaler Path:</strong> <code>models/scaler.pkl</code></div>
+        </div>
+
+        <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+            <button id="retrain-btn" onclick="triggerRetrain()" class="btn btn-primary">
+                ⚡ Retrain PyTorch LSTM Model
+            </button>
+            <span id="retrain-spinner" style="display: none; margin-left: 10px; font-size: 12px; color: var(--color-accent);">
+                ⏳ Training 4,500 sequences across 20 epochs...
+            </span>
+        </div>
+    </div>
+
+    <!-- DATABASE & RUNTIME STATUS CARD -->
+    <div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-xl); padding: 24px; box-shadow: var(--shadow-card);">
+        <div style="margin-bottom: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+            <h2 style="font-size: 16px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px;">
+                🗄️ SQLite Database & Runtime Status
+            </h2>
+        </div>
+
+        <div style="font-size: 13px; line-height: 1.8; color: var(--text-secondary);">
+            <div><strong>Database Engine:</strong> SQLite 3 (<code>vitaltrace.db</code>)</div>
+            <div><strong>Database Tables:</strong> <code>users, patients, vitals, predictions, alerts</code></div>
+            <div><strong>Total Patients Enrolled:</strong> {{ stats.total_patients }}</div>
+            <div><strong>Active Real-Time Telemetry Streams:</strong> {{ stats.active_monitoring }}</div>
+            <div><strong>Active Triage Alerts:</strong> {{ stats.active_alerts }}</div>
+            <div><strong>Socket.IO Protocol:</strong> WebSocket with Threading Async Mode</div>
+            <div><strong>Vital Simulator Engine:</strong> Independent Brownian Autoregressive Markov Process</div>
+            <div><strong>Sampling Frequency:</strong> 1.5 seconds / telemetry packet</div>
+        </div>
+
+        <div style="margin-top: 20px; background: rgba(0, 0, 0, 0.3); padding: 14px; border-radius: var(--radius-md); border: 1px solid var(--border-color); font-size: 12px;">
+            <div style="font-weight: 600; color: #fff; margin-bottom: 4px;">Clinical Session Active:</div>
+            <div>Logged in as: <strong style="color: var(--color-accent);">{{ current_user.full_name }}</strong> ({{ current_user.role }})</div>
+            <div>Username: <code>{{ current_user.username }}</code></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function triggerRetrain() {
+    const btn = document.getElementById('retrain-btn');
+    const spinner = document.getElementById('retrain-spinner');
+    
+    btn.disabled = true;
+    btn.innerText = 'Training in progress...';
+    spinner.style.display = 'inline';
+
+    try {
+        const res = await fetch('/api/model/retrain', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            showToast(data.message, 'success', 'PYTORCH RETRAINING COMPLETE');
+            setTimeout(() => window.location.reload(), 1000);
+        } else {
+            showToast(data.error || 'Retraining failed', 'critical');
+        }
+    } catch (err) {
+        showToast(err.message, 'critical');
+    } finally {
+        btn.disabled = false;
+        btn.innerText = '⚡ Retrain PyTorch LSTM Model';
+        spinner.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

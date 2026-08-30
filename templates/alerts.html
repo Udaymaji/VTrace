@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block title %}Clinical Alert Center — VitalTrace{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">ICU Clinical Alert & Triage Center</h1>
+        <p class="page-subtitle">Deep learning early warning alerts, risk deterioration notifications, and triage resolutions</p>
+    </div>
+    
+    <!-- ALERT FILTERS -->
+    <div style="display: flex; gap: 8px;">
+        <a href="{{ url_for('alerts_page', status='ALL') }}" class="btn {% if current_filter == 'ALL' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+            All Alerts
+        </a>
+        <a href="{{ url_for('alerts_page', status='CRITICAL') }}" class="btn {% if current_filter == 'CRITICAL' %}btn-danger{% else %}btn-secondary{% endif %} btn-sm">
+            🚨 Critical
+        </a>
+        <a href="{{ url_for('alerts_page', status='WARNING') }}" class="btn {% if current_filter == 'WARNING' %}btn-warning{% else %}btn-secondary{% endif %} btn-sm">
+            ⚠️ Warning
+        </a>
+        <a href="{{ url_for('alerts_page', status='RESOLVED') }}" class="btn {% if current_filter == 'RESOLVED' %}btn-success{% else %}btn-secondary{% endif %} btn-sm">
+            ✅ Resolved
+        </a>
+    </div>
+</div>
+
+<!-- ALERTS TABLE -->
+<div class="data-table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Severity</th>
+                <th>Patient</th>
+                <th>Diagnostic Message</th>
+                <th>Risk Score</th>
+                <th>Model Confidence</th>
+                <th>Timestamp</th>
+                <th>Triage Status</th>
+                <th style="text-align: right;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in alerts %}
+            <tr id="alert-row-{{ a.id }}">
+                <td>
+                    <span class="badge badge-{{ a.alert_type|lower }}">{{ a.alert_type }}</span>
+                </td>
+                <td>
+                    <strong style="color: #fff;">{{ a.patient_name }}</strong>
+                    <div style="font-size: 11px; color: var(--color-accent); font-family: monospace;">{{ a.patient_id }}</div>
+                </td>
+                <td style="max-width: 320px; font-size: 13px; color: var(--text-primary);">
+                    {{ a.message }}
+                </td>
+                <td>
+                    <strong style="color: {% if a.alert_type == 'CRITICAL' %}var(--color-critical){% else %}var(--color-warning){% endif %}; font-size: 14px;">
+                        {{ a.risk_score }}%
+                    </strong>
+                </td>
+                <td>
+                    <span style="color: var(--text-secondary);">{{ a.confidence }}%</span>
+                </td>
+                <td style="font-size: 12px; color: var(--text-muted); font-family: monospace;">
+                    {{ a.timestamp }}
+                </td>
+                <td>
+                    {% if a.status == 'RESOLVED' %}
+                        <span class="badge badge-normal">RESOLVED</span>
+                    {% else %}
+                        <span class="badge badge-critical">UNRESOLVED</span>
+                    {% endif %}
+                </td>
+                <td style="text-align: right;">
+                    {% if a.status != 'RESOLVED' %}
+                    <button onclick="resolveAlert({{ a.id }})" class="btn btn-secondary btn-sm" style="color: var(--color-normal); border-color: var(--color-normal);" title="Mark clinical alert as resolved">
+                        ✓ Mark Resolved
+                    </button>
+                    {% else %}
+                    <span style="font-size: 11px; color: var(--text-muted);">Handled</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                    No clinical alerts matching current filter ({{ current_filter }}).
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function resolveAlert(alertId) {
+    try {
+        const res = await fetch(`/api/alerts/${alertId}/resolve`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Clinical alert triaged and marked as resolved.', 'success');
+            setTimeout(() => window.location.reload(), 500);
+        }
+    } catch (err) {
+        showToast(err.message, 'critical');
+    }
+}
+</script>
+{% endblock %}

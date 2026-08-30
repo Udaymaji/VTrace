@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical Login — VitalTrace</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .login-canvas {
+            min-height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, #131c2e 0%, #0a0e17 100%);
+            padding: 20px;
+        }
+        .login-card {
+            background: #131c2e;
+            border: 1px solid #22324e;
+            border-radius: var(--radius-xl);
+            width: 100%;
+            max-width: 440px;
+            padding: 36px 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+        }
+        .login-brand {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .login-brand .logo-icon {
+            margin: 0 auto 14px auto;
+            width: 48px;
+            height: 48px;
+            font-size: 24px;
+        }
+        .login-brand h2 {
+            font-size: 22px;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: -0.5px;
+        }
+        .login-brand p {
+            font-size: 12px;
+            color: var(--color-accent);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+        .demo-accounts-pillbox {
+            background: rgba(14, 165, 233, 0.08);
+            border: 1px dashed rgba(14, 165, 233, 0.3);
+            border-radius: var(--radius-md);
+            padding: 14px;
+            margin-bottom: 20px;
+            font-size: 12px;
+        }
+        .demo-pill-btn {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #f1f5f9;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            margin-top: 6px;
+            margin-right: 6px;
+            display: inline-block;
+        }
+        .demo-pill-btn:hover {
+            border-color: var(--color-accent);
+            background: #27354a;
+        }
+        .error-banner {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            color: #fca5a5;
+            padding: 10px 14px;
+            border-radius: var(--radius-md);
+            font-size: 12px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-canvas">
+        <div class="login-card">
+            <div class="login-brand">
+                <div class="logo-icon">VT</div>
+                <h2>VitalTrace</h2>
+                <p>Clinical Intelligence System</p>
+            </div>
+
+            {% if error %}
+            <div class="error-banner">
+                ⚠️ {{ error }}
+            </div>
+            {% endif %}
+
+            <div class="demo-accounts-pillbox">
+                <div style="font-weight: 600; color: #fff; margin-bottom: 4px;">⚡ Instant 1-Click Access (Bypass Login):</div>
+                <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+                    <a href="{{ url_for('direct_login', username='doctor') }}" class="btn btn-primary btn-sm" style="flex: 1; text-align: center; text-decoration: none;">
+                        👨‍⚕️ Enter as Dr. Rajesh Sharma
+                    </a>
+                    <a href="{{ url_for('direct_login', username='admin') }}" class="btn btn-secondary btn-sm" style="flex: 1; text-align: center; text-decoration: none;">
+                        🛡️ Enter as CMO Admin
+                    </a>
+                </div>
+            </div>
+
+            <form method="POST" action="{{ url_for('login_page') }}">
+                <div class="form-group">
+                    <label class="form-label">Physician Username</label>
+                    <input type="text" id="username" name="username" class="form-control" placeholder="Enter username (e.g. doctor)" required autofocus>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Clinical Password</label>
+                    <input type="password" id="password" name="password" class="form-control" placeholder="Enter password (e.g. doctor123)" required>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full" style="padding: 12px; margin-top: 10px; font-size: 14px;">
+                    Authenticate Session & Access ICU
+                </button>
+            </form>
+
+            <div style="text-align: center; margin-top: 24px; font-size: 11px; color: var(--text-muted);">
+                VitalTrace Clinical Platform v3.4 • PyTorch Deep Learning
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function fillDemo(u, p) {
+            document.getElementById('username').value = u;
+            document.getElementById('password').value = p;
+        }
+    </script>
+</body>
+</html>

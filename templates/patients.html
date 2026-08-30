@@ -1,0 +1,350 @@
+{% extends 'base.html' %}
+
+{% block title %}Patient Directory — VitalTrace{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Patient Management Directory</h1>
+        <p class="page-subtitle">Admitted patient profiles, clinical history, emergency contacts, and active streams</p>
+    </div>
+    <button onclick="openAddPatientModal()" class="btn btn-primary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        + Add New Patient
+    </button>
+</div>
+
+<!-- SEARCH & FILTER BAR -->
+<div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 24px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 260px;">
+        <input type="text" id="patient-search-input" onkeyup="filterPatientsTable()" placeholder="🔍 Search patient name, ID, or condition..." class="form-control" style="background: var(--bg-input);">
+    </div>
+    <div>
+        <select id="status-filter-select" onchange="filterPatientsTable()" class="form-control" style="background: var(--bg-input); width: auto;">
+            <option value="ALL">All Monitoring States</option>
+            <option value="ACTIVE">Active Streams Only</option>
+            <option value="INACTIVE">Standby / Inactive</option>
+        </select>
+    </div>
+</div>
+
+<!-- PATIENTS DATA TABLE -->
+<div class="data-table-container">
+    <table class="data-table" id="patients-table">
+        <thead>
+            <tr>
+                <th>Patient ID</th>
+                <th>Full Name</th>
+                <th>Age / Gender</th>
+                <th>Contact & Emergency</th>
+                <th>Clinical History</th>
+                <th>Monitoring</th>
+                <th>Latest AI Risk</th>
+                <th style="text-align: right;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in patients %}
+            {% set pred = p.latest_prediction|default('NORMAL') %}
+            <tr class="patient-row" data-id="{{ p.patient_id }}" data-status="{{ p.monitoring_status }}">
+                <td>
+                    <span class="pid-pill" style="font-size: 12px; font-weight: 700; color: var(--color-accent);">{{ p.patient_id }}</span>
+                </td>
+                <td>
+                    <strong style="color: #fff; font-size: 14px;">{{ p.full_name }}</strong>
+                    <div style="font-size: 11px; color: var(--text-muted);">Added: {{ p.created_at }}</div>
+                </td>
+                <td>
+                    {{ p.age }} yrs • {{ p.gender }}
+                </td>
+                <td>
+                    <div>📞 {{ p.phone|default('N/A') }}</div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Emerg: {{ p.emergency_contact|default('None') }}</div>
+                </td>
+                <td style="max-width: 220px; font-size: 12px; color: var(--text-secondary);">
+                    {{ p.medical_history|default('None recorded') }}
+                </td>
+                <td>
+                    {% if p.monitoring_status == 'ACTIVE' %}
+                        <span class="badge badge-normal"><span class="status-dot"></span> LIVE</span>
+                    {% else %}
+                        <span class="badge badge-inactive">STANDBY</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if p.latest_risk_score is not none %}
+                        <span class="badge badge-{{ pred|lower }}">{{ pred }} ({{ p.latest_risk_score }}%)</span>
+                    {% else %}
+                        <span style="color: var(--text-muted); font-size: 11px;">No data yet</span>
+                    {% endif %}
+                </td>
+                <td style="text-align: right;">
+                    <div style="display: inline-flex; gap: 6px;">
+                        <a href="{{ url_for('monitoring_page', patient_id=p.patient_id) }}" class="btn btn-secondary btn-sm" title="Live Telemetry">
+                            📊
+                        </a>
+                        {% if p.monitoring_status == 'ACTIVE' %}
+                        <button onclick="toggleMonitoring('{{ p.patient_id }}', false)" class="btn btn-danger btn-sm" title="Stop Stream">
+                            Stop
+                        </button>
+                        {% else %}
+                        <button onclick="toggleMonitoring('{{ p.patient_id }}', true)" class="btn btn-success btn-sm" title="Start Stream">
+                            Start
+                        </button>
+                        {% endif %}
+                        <button onclick="openEditPatientModal('{{ p.patient_id }}', '{{ p.full_name }}', {{ p.age }}, '{{ p.gender }}', '{{ p.phone }}', '{{ p.email }}', '{{ p.medical_history }}', '{{ p.emergency_contact }}')" class="btn btn-secondary btn-sm" title="Edit Patient">
+                            ✏️
+                        </button>
+                        <button onclick="deletePatientPrompt('{{ p.patient_id }}', '{{ p.full_name }}')" class="btn btn-secondary btn-sm" style="color: #ef4444;" title="Delete Patient">
+                            🗑️
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- ADD PATIENT MODAL -->
+<div id="add-patient-modal" class="modal-backdrop">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>+ Register New ICU Patient</h3>
+            <button class="modal-close-btn" onclick="closeModal('add-patient-modal')">&times;</button>
+        </div>
+        <form id="add-patient-form" onsubmit="submitAddPatient(event)">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Full Name *</label>
+                    <input type="text" id="add-name" name="full_name" class="form-control" placeholder="e.g. Amit Kumar" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Age *</label>
+                        <input type="number" id="add-age" name="age" class="form-control" placeholder="45" min="1" max="120" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Gender *</label>
+                        <select id="add-gender" name="gender" class="form-control" required>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Phone Number (10 Digits)</label>
+                        <input type="tel" id="add-phone" name="phone" class="form-control" placeholder="9876543210" maxlength="10" minlength="10" pattern="[0-9]{10}" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" id="add-email" name="email" class="form-control" placeholder="patient@hospital.org">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Clinical History & Pre-existing Conditions</label>
+                    <textarea id="add-history" name="medical_history" class="form-control" rows="2" placeholder="e.g. Hypertension, Type 2 Diabetes, Asthmatic"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Emergency Contact Info</label>
+                    <input type="text" id="add-emergency" name="emergency_contact" class="form-control" placeholder="Name, relation & phone">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('add-patient-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save to SQLite Database</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- EDIT PATIENT MODAL -->
+<div id="edit-patient-modal" class="modal-backdrop">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h3>✏️ Edit Patient Record</h3>
+            <button class="modal-close-btn" onclick="closeModal('edit-patient-modal')">&times;</button>
+        </div>
+        <form id="edit-patient-form" onsubmit="submitEditPatient(event)">
+            <input type="hidden" id="edit-pid" name="patient_id">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Full Name *</label>
+                    <input type="text" id="edit-name" name="full_name" class="form-control" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Age *</label>
+                        <input type="number" id="edit-age" name="age" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Gender *</label>
+                        <select id="edit-gender" name="gender" class="form-control" required>
+                            <option value="Male">Male</option>
+                            <option value="Female">Female</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Phone Number (10 Digits)</label>
+                        <input type="tel" id="edit-phone" name="phone" class="form-control" placeholder="9876543210" maxlength="10" minlength="10" pattern="[0-9]{10}" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Email Address</label>
+                        <input type="email" id="edit-email" name="email" class="form-control">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Clinical History</label>
+                    <textarea id="edit-history" name="medical_history" class="form-control" rows="2"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Emergency Contact Info</label>
+                    <input type="text" id="edit-emergency" name="emergency_contact" class="form-control">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('edit-patient-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Database Record</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openAddPatientModal() {
+    document.getElementById('add-patient-form').reset();
+    openModal('add-patient-modal');
+}
+
+function openEditPatientModal(pid, name, age, gender, phone, email, history, emergency) {
+    document.getElementById('edit-pid').value = pid;
+    document.getElementById('edit-name').value = name;
+    document.getElementById('edit-age').value = age;
+    document.getElementById('edit-gender').value = gender;
+    document.getElementById('edit-phone').value = phone || '';
+    document.getElementById('edit-email').value = email || '';
+    document.getElementById('edit-history').value = history || '';
+    document.getElementById('edit-emergency').value = emergency || '';
+    openModal('edit-patient-modal');
+}
+
+async function submitAddPatient(e) {
+    e.preventDefault();
+    const form = e.target;
+    const phoneVal = (form.phone.value || '').trim();
+    if (phoneVal && !/^\d{10}$/.test(phoneVal)) {
+        showToast('Phone number must be exactly 10 numeric digits', 'warning');
+        return;
+    }
+
+    const payload = {
+        full_name: form.full_name.value,
+        age: form.age.value,
+        gender: form.gender.value,
+        phone: phoneVal,
+        email: form.email.value,
+        medical_history: form.medical_history.value,
+        emergency_contact: form.emergency_contact.value
+    };
+
+    try {
+        const res = await fetch('/api/patients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeModal('add-patient-modal');
+            showToast(`Patient ${payload.full_name} successfully registered in SQLite!`, 'success');
+            setTimeout(() => window.location.reload(), 600);
+        } else {
+            showToast(data.error || 'Failed to add patient', 'critical');
+        }
+    } catch (err) {
+        showToast(err.message, 'critical');
+    }
+}
+
+async function submitEditPatient(e) {
+    e.preventDefault();
+    const form = e.target;
+    const pid = form.patient_id.value;
+    const phoneVal = (form.phone.value || '').trim();
+    if (phoneVal && !/^\d{10}$/.test(phoneVal)) {
+        showToast('Phone number must be exactly 10 numeric digits', 'warning');
+        return;
+    }
+
+    const payload = {
+        full_name: form.full_name.value,
+        age: form.age.value,
+        gender: form.gender.value,
+        phone: phoneVal,
+        email: form.email.value,
+        medical_history: form.medical_history.value,
+        emergency_contact: form.emergency_contact.value
+    };
+
+    try {
+        const res = await fetch(`/api/patients/${pid}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeModal('edit-patient-modal');
+            showToast(`Patient ${payload.full_name} updated successfully!`, 'success');
+            setTimeout(() => window.location.reload(), 600);
+        }
+    } catch (err) {
+        showToast(err.message, 'critical');
+    }
+}
+
+async function deletePatientPrompt(pid, name) {
+    if (!confirm(`Are you sure you want to permanently delete patient ${name} (${pid}) and all associated SQLite telemetry records?`)) {
+        return;
+    }
+
+    try {
+        const res = await fetch(`/api/patients/${pid}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+            showToast(`Patient ${pid} deleted from database.`, 'info');
+            setTimeout(() => window.location.reload(), 600);
+        }
+    } catch (err) {
+        showToast(err.message, 'critical');
+    }
+}
+
+function filterPatientsTable() {
+    const q = document.getElementById('patient-search-input').value.toLowerCase();
+    const status = document.getElementById('status-filter-select').value;
+    const rows = document.querySelectorAll('#patients-table tbody tr');
+
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        const rowStatus = row.getAttribute('data-status');
+
+        const matchesQuery = text.includes(q);
+        const matchesStatus = (status === 'ALL') || (rowStatus === status);
+
+        if (matchesQuery && matchesStatus) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}

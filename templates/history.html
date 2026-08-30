@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+
+{% block title %}Patient History & Telemetry Logs — VitalTrace{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Patient Telemetry & AI Prediction History</h1>
+        <p class="page-subtitle">Longitudinal SQLite physiological records, risk trajectory logs, and clinical audit export</p>
+    </div>
+
+    <!-- EXPORT CSV -->
+    {% if active_patient %}
+    <a href="{{ url_for('api_export_history_csv', patient_id=active_patient.patient_id, range=time_filter) }}" class="btn btn-secondary">
+        📥 Export CSV Audit File
+    </a>
+    {% endif %}
+</div>
+
+<!-- CONTROLS ROW -->
+<div style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 16px 20px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+    <!-- PATIENT SELECTOR -->
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <label style="font-size: 12px; font-weight: 600; color: var(--text-secondary);">PATIENT:</label>
+        <select class="form-control" style="background: var(--bg-input); width: auto;" onchange="window.location.href='/history/' + this.value + '?range={{ time_filter }}'">
+            {% for p in patients %}
+            <option value="{{ p.patient_id }}" {% if active_patient and active_patient.patient_id == p.patient_id %}selected{% endif %}>
+                {{ p.full_name }} ({{ p.patient_id }})
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <!-- TIME RANGE FILTERS -->
+    <div style="display: flex; gap: 6px;">
+        {% if active_patient %}
+        <a href="{{ url_for('history_page', patient_id=active_patient.patient_id, range='today') }}" class="btn {% if time_filter == 'today' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+            Today
+        </a>
+        <a href="{{ url_for('history_page', patient_id=active_patient.patient_id, range='24h') }}" class="btn {% if time_filter == '24h' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+            Last 24 Hours
+        </a>
+        <a href="{{ url_for('history_page', patient_id=active_patient.patient_id, range='7d') }}" class="btn {% if time_filter == '7d' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+            Last 7 Days
+        </a>
+        <a href="{{ url_for('history_page', patient_id=active_patient.patient_id, range='all') }}" class="btn {% if time_filter == 'all' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">
+            All Time
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- HISTORY RECORDS TABLE -->
+<div class="data-table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Heart Rate</th>
+                <th>SpO2</th>
+                <th>Core Temp</th>
+                <th>Resp. Rate</th>
+                <th>Blood Pressure</th>
+                <th>PyTorch Prediction</th>
+                <th>Risk Score</th>
+                <th>Confidence</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in records %}
+            {% set pred = r.prediction|default('NORMAL') %}
+            <tr>
+                <td style="font-family: monospace; font-size: 12px; color: var(--text-secondary);">
+                    {{ r.timestamp }}
+                </td>
+                <td>
+                    <strong style="color: #fff;">{{ r.heart_rate }}</strong> <span style="font-size: 10px; color: var(--text-muted);">BPM</span>
+                </td>
+                <td>
+                    <strong style="color: #38bdf8;">{{ r.spo2 }}%</strong>
+                </td>
+                <td>
+                    {{ r.temperature }}°C
+                </td>
+                <td>
+                    {{ r.respiratory_rate }} RPM
+                </td>
+                <td>
+                    {{ (r.systolic_bp or 120)|round(0)|int }}/{{ (r.diastolic_bp or 80)|round(0)|int }} mmHg
+                </td>
+                <td>
+                    <span class="badge badge-{{ pred|lower }}">{{ pred }}</span>
+                </td>
+                <td>
+                    <strong style="color: {% if pred == 'CRITICAL' %}var(--color-critical){% elif pred == 'WARNING' %}var(--color-warning){% else %}var(--color-normal){% endif %};">
+                        {{ r.risk_score|default(10.0) }}%
+                    </strong>
+                </td>
+                <td>
+                    <span style="color: var(--text-secondary);">{{ r.confidence|default(95.0) }}%</span>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="9" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                    No historical readings stored in SQLite for the selected time filter. Start real-time monitoring to record live vitals.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

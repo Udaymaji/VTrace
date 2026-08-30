@@ -1,0 +1,6 @@
+{
+  "name": "VitalTrace",
+  "description": "Real-Time Patient Health Monitoring Using Deep Learning - Clinical Intelligence Dashboard with PyTorch LSTM & Vital Simulators.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
